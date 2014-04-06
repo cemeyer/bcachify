@@ -20,6 +20,7 @@ const char *DEVNAME = "XXX.123";
 
 /* Minimum is 8kB (end of the BCache SB; my md array is chunked at 512k */
 uint64_t BCACHE_SB_SPACE = UINT64_C(512*1024);
+uint64_t resume_from = UINT64_MAX;
 
 int logfd = -1;
 int devfd = -1;
@@ -126,9 +127,11 @@ copy_end_to_front(uint64_t dev_size_bytes)
 	uint64_t dest, src = UINT64_MAX;
 	ssize_t n;
 
-	for (dest = dev_size_bytes - BCACHE_SB_SPACE; dest >= BCACHE_SB_SPACE;
-		dest -= BCACHE_SB_SPACE) {
+	dest = dev_size_bytes - BCACHE_SB_SPACE;
+	if (resume_from != UINT64_MAX)
+		dest = resume_from;
 
+	for (; dest >= BCACHE_SB_SPACE; dest -= BCACHE_SB_SPACE) {
 		src = dest - BCACHE_SB_SPACE;
 		ASSERT(src < dest);
 
@@ -182,6 +185,11 @@ main(int argc, char **argv)
 	DEVNAME = argv[1];
 	if (argc > 2)
 		BCACHE_SB_SPACE = atoll(argv[2]);
+
+	if (argc > 3) {
+		resume_from = atoll(argv[3]);
+		ASSERT(resume_from % BCACHE_SB_SPACE == 0);
+	}
 
 	ASSERT(BCACHE_SB_SPACE >= 8*1024);
 	ASSERT(BCACHE_SB_SPACE % 512 == 0);
