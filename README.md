@@ -18,16 +18,18 @@ size:
 
 And then multiply it a few times, to take advantage of raid0 striping and raid1
 mirroring, depending on your setup. Also, the bigger the sequential IOs, the
-faster it will go.
+faster it will go. And then ignore that number and just use `8M` or `16M`
+anyway.
 
-Or for a normal disk, just use `256k` to `1M`. Technically `8k` is the minimum,
-but the smaller the unit size the slower the migration will be. (I think `16M`
-is the largest data offset supported (16-bit count of 512-byte sectors), but I
-could be wrong.)
+Or for a normal disk, just use `8M`. Technically `8k` is the minimum,
+but the smaller the unit size the slower the migration will be (and it gets a
+LOT slower). (I think `16M` is the largest data offset supported (16-bit count
+of 512-byte sectors), but I could be wrong.)
 
 The only advantage to a smaller block size is you waste that much less space at
-the front of the block device. For multi-TB volumes, 4-8MB is probably noise
-and will making the migration much much faster.
+the front of the block device. For multi-TB volumes, 4-8MB loss is probably
+noise, and 8MB block size will making the migration much much faster than
+smaller sizes.
 
 Next, use `resize2fs` to shrink the filesystem down to leave at least the chunk
 size free at the end of the block device.
@@ -49,9 +51,6 @@ Wait several hours, and then:
     to --block is in bytes but must be a multiple of 512-byte sectors
     and a power of two.)
 
-Note: logs will get very big; to preserve durability and not overfill the log
-filesystem, I need to implement basic log rotation. TODO.
-
 Why?
 ====
 
@@ -63,7 +62,8 @@ Misc
 
 My machine crashed during migration! How do I resume it without corruption?
 
-Look at the last line in bcachify.log:
+Look at the last line in `bcachify.log` (or, and only if `bcachify.log` doesn't
+have any "Copying" lines yet, `bcachify.log.0`):
 
     Copying 2877208657920 (block: 5487840) to 2877209182208 (block 5487841)
 
@@ -84,13 +84,12 @@ the block device, much like the equivalent `memmove(N, 0, M)`.
 bcachify.log acts as a sort of write-ahead-log where we synchronously write our
 intended copy operation. The last copy in the WAL on crash is idempotent and
 safe to replay, and then we resume from there. The block device and
-write-ahead log are both used in `O_SYNC` mode.
+write-ahead log are both used in `O_SYNC` mode. At 2 MB the log is rotated to
+bcachify.log.0.
 
 Suggested improvements:
 
 * Default to and/or restrict block size to a larger size (4M? 8M?)
-* Log rotation on the WAL (at XXX MB, move it to `bcachify.log.0` and open a
-  new log)
 * More validation, sanity checks
     * Validate the filesystem on the blockdevice ends `BLOCK_SZ` before the
       block device does

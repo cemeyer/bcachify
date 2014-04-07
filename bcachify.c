@@ -27,6 +27,8 @@ int devfd = -1;
 
 char *copybuf = NULL;
 
+static void open_log(void);
+
 static void
 ASSERT_(uintptr_t cond, const char *func, unsigned line, const char *fmt, ...)
 {
@@ -48,7 +50,9 @@ ASSERT_(uintptr_t cond, const char *func, unsigned line, const char *fmt, ...)
 static void
 durable_log(const char *fmt, ...)
 {
+	static unsigned lines_written = 0;
 	static char buf[1024];
+
 	ssize_t wrt;
 	va_list ap;
 	int n;
@@ -63,6 +67,32 @@ durable_log(const char *fmt, ...)
 	wrt = write(logfd, buf, n);
 	ASSERT(wrt >= 0, "error: %d:%s", errno, strerror(errno));
 	ASSERT(wrt == n);
+
+	/* Occasionally rotate logs so we don't fill logging filesystem. */
+	lines_written++;
+	if (lines_written >= 10000) {
+		struct stat sb;
+
+		lines_written = 0;
+
+		n = fstat(logfd, &sb);
+		ASSERT(n == 0, "fstat: %d:%s", errno, strerror(errno));
+
+		if (sb.st_size > 2*1024*1024) {
+			n = fsync(logfd);
+			ASSERT(n == 0, "fsync: %d:%s", errno, strerror(errno));
+
+			close(logfd);
+			logfd = -1;
+
+			n = rename("bcachify.log", "bcachify.log.0");
+			ASSERT(n == 0, "rename: %d:%s", errno, strerror(errno));
+
+			open_log();
+			n = fsync(logfd);
+			ASSERT(n == 0, "fsync: %d:%s", errno, strerror(errno));
+		}
+	}
 }
 
 static void
@@ -157,7 +187,7 @@ copy_end_to_front(uint64_t dev_size_bytes)
 	}
 
 	durable_log("=========== Finished copying at %ju->%ju =============\n",
-		(uintmax_t)src, (uintmax_t)dest);
+		(uintmax_t)src, (uintmax_t)src+BCACHE_SB_SPACE);
 }
 
 static void
