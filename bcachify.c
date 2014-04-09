@@ -239,12 +239,20 @@ main(int argc, char **argv)
 	close(logfd);
 	devfd = logfd = -1;
 
-	printf("Okay, now invoke make-bcache like this:\n");
-	printf("make-bcache --bdev --data_offset %ju --block XXX "
-		"[--cset-uuid UUID]\n", (uintmax_t)BCACHE_SB_SPACE/512);
-	printf("(data_offset is in units of 512-byte sectors; the argument\n");
-	printf("to --block is in bytes but must be a multiple of 512-byte sectors\n");
-	printf("and a power of two.)\n");
+	printf("Okay, you're done migrating!\n");
+	printf("First, invoke 'wipefs -a /dev/foo' to clear the few bytes\n"
+	    "that identify this as a filesystem to blkid(1).\n\n");
+
+	printf("Next, now invoke make-bcache like this:\n"
+	    "make-bcache --bdev --data_offset %ju --block XXX "
+		"[--cset-uuid UUID] /dev/foo\n\n",
+		(uintmax_t)BCACHE_SB_SPACE/512);
+	printf("(data_offset is the block size you passed earlier in units of\n"
+	    " 512-byte sectors; the argument to --block must be the same you\n"
+	    "used to set up the cache device, and is in bytes but must be a\n"
+	    "multiple of 512-byte sectors and a power of two.)\n");
+
+	fflush(stdout);
 
 	return 0;
 }

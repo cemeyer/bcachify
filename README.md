@@ -94,3 +94,9 @@ Suggested improvements:
     * Validate the filesystem on the blockdevice ends `BLOCK_SZ` before the
       block device does
     * ...
+
+Does it actually work?
+======================
+
+Yup, I just migrated 4TB sideways by 512kB with it. Scary, but effective. I
+would use a larger block size in the future.
